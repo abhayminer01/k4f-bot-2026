@@ -20,7 +20,7 @@ module.exports = {
         name: 'reason',
         description: 'Reason for rejection',
         type: ApplicationCommandOptionType.String,
-        required: true, // make it required as you asked
+        required: true,
       },
     ],
     permissionsRequired: [
@@ -34,6 +34,9 @@ module.exports = {
    * @param {import('commandkit').SlashCommandProps} param0
    */
   run: async ({ client, interaction }) => {
+    // ✅ ACK immediately to avoid "Unknown interaction"
+    await interaction.deferReply({ ephemeral: true });
+
     try {
       const user = interaction.options.getUser('user');
       const reason = interaction.options.getString('reason');
@@ -42,9 +45,8 @@ module.exports = {
       const logChannel = interaction.guild.channels.cache.get(CHANNEL_ID);
 
       if (!logChannel || !logChannel.isTextBased()) {
-        return interaction.reply({ 
-          content: '❌ Reject log channel not found or not a text channel.', 
-          ephemeral: true 
+        return interaction.editReply({ 
+          content: '❌ Reject log channel not found or not a text channel.' 
         });
       }
 
@@ -57,9 +59,8 @@ module.exports = {
       );
 
       if (!hasAllowedRole) {
-        return interaction.reply({
+        return interaction.editReply({
           content: '❌ You are not allowed to use this command.',
-          ephemeral: true,
         });
       }
 
@@ -72,10 +73,9 @@ module.exports = {
         console.log('DM closed by user.');
       }
 
-      // 2️⃣ Reply to staff
-      await interaction.reply({
+      // 2️⃣ Reply to staff (edit deferred reply)
+      await interaction.editReply({
         content: `❌ **${user.tag}** has been rejected.\n📄 Reason: ${reason}`,
-        ephemeral: true,
       });
 
       // 3️⃣ Send embed in reject log channel
@@ -101,7 +101,11 @@ module.exports = {
 
     } catch (err) {
       console.error(err);
-      if (!interaction.replied) {
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({
+          content: '❌ Something went wrong while rejecting the user.',
+        });
+      } else {
         await interaction.reply({
           content: '❌ Something went wrong while rejecting the user.',
           ephemeral: true,

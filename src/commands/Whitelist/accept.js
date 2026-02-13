@@ -28,6 +28,9 @@ module.exports = {
    * @param {import('commandkit').SlashCommandProps} param0
    */
   run: async ({ client, interaction }) => {
+    // ✅ ACK immediately to avoid "Unknown interaction"
+    await interaction.deferReply({ ephemeral: true });
+
     try {
       const user = interaction.options.getUser('user');
       const member = await interaction.guild.members.fetch(user.id);
@@ -41,11 +44,11 @@ module.exports = {
       const logChannel = interaction.guild.channels.cache.get(CHANNEL_ID);
 
       if (!acceptRole) {
-        return interaction.reply({ content: '❌ Accept role not found. Check WL_ACCEPT_ROLE_ID', ephemeral: true });
+        return interaction.editReply({ content: '❌ Accept role not found. Check WL_ACCEPT_ROLE_ID' });
       }
 
       if (!logChannel || !logChannel.isTextBased()) {
-        return interaction.reply({ content: '❌ Accept log channel not found or not a text channel.', ephemeral: true });
+        return interaction.editReply({ content: '❌ Accept log channel not found or not a text channel.' });
       }
 
       // 🔐 ROLE-BASED ACCESS CONTROL
@@ -57,9 +60,8 @@ module.exports = {
       );
 
       if (!hasAllowedRole) {
-        return interaction.reply({
+        return interaction.editReply({
           content: '❌ You are not allowed to use this command.',
-          ephemeral: true,
         });
       }
 
@@ -73,7 +75,7 @@ module.exports = {
         await member.roles.add(acceptRole);
       }
 
-      // 3️⃣ DM the user
+      // 3️⃣ DM the user (best effort)
       try {
         await user.send(
           `🎉 Congrats!\n\nYour whitelist application in **${interaction.guild.name}** has been **approved**!\nYou are now whitelisted. Welcome aboard! 🚀`
@@ -82,17 +84,16 @@ module.exports = {
         console.log('DM closed by user.');
       }
 
-      // 4️⃣ Reply to staff
-      await interaction.reply({
+      // 4️⃣ Reply to staff (edit deferred reply)
+      await interaction.editReply({
         content: `✅ **${user.tag}** has been **whitelisted** successfully.`,
-        ephemeral: true,
       });
 
       // 5️⃣ Send embed in accept log channel
       const embed = new EmbedBuilder()
         .setTitle('✅ Whitelist Application Approved!')
-        .setColor(0x2ecc71) // green
-        .setDescription('Congrats, Your whitelist application has been approved. Welcome to KeMiCS for Fans 2026')
+        .setColor(0x2ecc71)
+        .setDescription('Congrats, your whitelist application has been approved. Welcome to KeMiCS for Fans 2026')
         .setImage('https://cdn.discordapp.com/attachments/1471188802830729378/1471379646116397207/K4F_WL_Accepted.jpg?ex=698eb894&is=698d6714&hm=2e0c1f3443a88753e519c2ea1bb08aa0fc21be4fa0bde785194a71ad74284c2c&')
         .setThumbnail(user.displayAvatarURL({ dynamic: true }))
         .setFooter({ 
@@ -108,9 +109,13 @@ module.exports = {
 
     } catch (err) {
       console.error(err);
-      if (!interaction.replied) {
-        await interaction.reply({
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({
           content: '❌ Failed to approve whitelist. Make sure my role is above both target roles.',
+        });
+      } else {
+        await interaction.reply({
+          content: '❌ Failed to approve whitelist.',
           ephemeral: true,
         });
       }
